@@ -17,14 +17,21 @@ CSSImage.prototype.css = function(filepath, width, height, root, options){
     options.media = MEDIA_QUERY;
   }
   var squeeze = !!options.squeeze ? +options.squeeze : 1;
-  var _width = Math.floor(width/squeeze);
-  var _height = Math.floor(height/squeeze);
-  return css.statement(classname,{
-    width: _width + "px",
-    height: _height + "px",
-    "background-image": this.url(filepath, root, options.retina),
-    "background-size": "" + _width  + "px " + _height + "px"
-  }, options);
+  var rule = {
+    width: width + "px",
+    height: height + "px",
+    "background-image": this.url(filepath, root, options.retina)
+  };
+
+  if (squeeze !== 1) {
+    var _width = Math.floor(width/squeeze);
+    var _height = Math.floor(height/squeeze);
+
+    rule["height"] = _height + "px";
+    rule["width"] = _width + "px";
+    rule["background-size"] = "" + _width  + "px " + _height + "px";
+  };
+  return css.statement(classname, rule, options);
 };
 
 CSSImage.prototype.scss_vars = function(filepath, _width, _height, options){
@@ -71,8 +78,66 @@ CSSImage.prototype.scss = function(filepath, width, height, root, options){
          this.scss_vars(filepath, width, height, options);
 };
 
+
+CSSImage.prototype.durl_vars = function(filepath, _width, _height, options){
+  var name = this.name(filepath, options);
+  var squeeze = (options && !!options.squeeze) ? +options.squeeze : 1;
+  var width, height;
+
+  if (squeeze !== 1) {
+    width = Math.floor(_width/squeeze);
+    height = Math.floor(_height/squeeze);
+  } else {
+    width =_width;
+    height = _height;
+  };
+
+  return "$" + name + "__width = " + width + "px;\n" +
+         "$" + name + "__height = " + height + "px;\n\n";
+};
+
+CSSImage.prototype.durl_class = function(filepath, _width, _height, root, options){
+  if(!options){ options = {}; }
+  var classname = "." + this.name(filepath, options);
+  var is_retina = !!options.retina;
+  var indent = css.options(options, "indent");
+  var squeeze = (options && !!options.squeeze) ? +options.squeeze : 1;
+  var width, height, rule;
+
+  if (squeeze !== 1) {
+    width = Math.floor(_width/squeeze);
+    height = Math.floor(_height/squeeze);
+    rule = {
+      "background-image": this.url(filepath, root),
+      "background-size": "" + width  + "px " + height + "px"
+    };
+  } else {
+    width =_width;
+    height = _height;
+    rule = {
+      "background-image": this.url(filepath, root)
+    };
+  };
+
+  var durl_decls = css.body(rule, {indent: indent});
+
+  if(is_retina){
+    rule["background-image"] = this.url(filepath, root, options.retina);
+    rule["background-size"] = "" + width  + "px " + height + "px";
+    var body = css.body(rule, {indent: indent + indent});
+    durl_decls += indent + "@media " + MEDIA_QUERY + "{\n" + body + indent + "}\n";
+  }
+  return classname + "{\n" + durl_decls + "}\n";
+};
+
+CSSImage.prototype.durl = function(filepath, width, height, root, options){
+  return this.durl_class(filepath, width, height, root, options) +
+         this.durl_vars(filepath, width, height, options);
+};
+
+
 CSSImage.prototype.url = function(filepath, root, retina){
-  return "url(" + this.normalize_path(filepath, root, retina) + ")";
+  return 'url("' + this.normalize_path(filepath, root, retina).replace(/\\/g, "/") + '")';
 };
 
 CSSImage.prototype.normalize_path = function(filepath, root, retina){
@@ -114,6 +179,9 @@ function cssimage(images, _options){
   var options = _.omit(_options, ["retina","squeeze"]);
   var is_css = !!options.css;
   var is_scss = !!options.scss;
+
+  var is_durl = !!options.durl;
+
   var root = options.root || "";
   var result = "";
   var is_retina = _options && !!_options.retina;
@@ -143,7 +211,23 @@ function cssimage(images, _options){
         }, options));
       }
     }
+
+    if(is_durl){
+      result += _cssImage.durl(img.file, img.width, img.height, root, _.extend({
+        retina: is_retina
+      }, options));
+      if(squeeze !== 1){
+        result += _cssImage.durl(img.file, img.width, img.height, root, _.extend({
+          squeeze: squeeze
+        }, options));
+      }
+    }
+
   }
+  if (is_durl) {
+    result = result.replace(/background-image: url\("/g, 'if ($imgfile is "true") {\n    background-image: durl("').replace(/\);/g, ");\n  };") +"\nif ($imgfile is 'true') {\n  background-image() {}\n};";
+  };
+  
   return result;
 }
 

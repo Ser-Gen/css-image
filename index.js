@@ -108,21 +108,21 @@ CSSImage.prototype.durl_class = function(filepath, _width, _height, root, option
     width = Math.floor(_width/squeeze);
     height = Math.floor(_height/squeeze);
     rule = {
-      "background-image": this.url(filepath, root),
+      "background-image": this.durl(filepath, root),
       "background-size": "" + width  + "px " + height + "px"
     };
   } else {
     width =_width;
     height = _height;
     rule = {
-      "background-image": this.url(filepath, root)
+      "background-image": this.durl(filepath, root)
     };
   };
 
   var durl_decls = css.body(rule, {indent: indent});
 
   if(is_retina){
-    rule["background-image"] = this.url(filepath, root, options.retina);
+    rule["background-image"] = this.durl(filepath, root, options.retina);
     rule["background-size"] = "" + width  + "px " + height + "px";
     var body = css.body(rule, {indent: indent + indent});
     durl_decls += indent + "@media " + MEDIA_QUERY + "{\n" + body + indent + "}\n";
@@ -130,9 +130,13 @@ CSSImage.prototype.durl_class = function(filepath, _width, _height, root, option
   return classname + "{\n" + durl_decls + "}\n";
 };
 
-CSSImage.prototype.durl = function(filepath, width, height, root, options){
+CSSImage.prototype.durl_styl = function(filepath, width, height, root, options){
   return this.durl_class(filepath, width, height, root, options) +
          this.durl_vars(filepath, width, height, options);
+};
+
+CSSImage.prototype.durl = function(filepath, root, retina){
+  return 'durl("' + this.normalize_path(filepath, root, retina).replace(/\\/g, "/") + '")';
 };
 
 
@@ -213,20 +217,17 @@ function cssimage(images, _options){
     }
 
     if(is_durl){
-      result += _cssImage.durl(img.file, img.width, img.height, root, _.extend({
+      result += _cssImage.durl_styl(img.file, img.width, img.height, root, _.extend({
         retina: is_retina
       }, options));
       if(squeeze !== 1){
-        result += _cssImage.durl(img.file, img.width, img.height, root, _.extend({
+        result += _cssImage.durl_styl(img.file, img.width, img.height, root, _.extend({
           squeeze: squeeze
         }, options));
       }
     }
 
   }
-  if (is_durl) {
-    result = result.replace(/background-image: url\("/g, 'if ($imgfile is "true") {\n    background-image: durl("').replace(/\);/g, ");\n  };") +"\nif ($imgfile is 'true') {\n  background-image() {}\n};";
-  };
   
   return result;
 }
